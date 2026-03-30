@@ -1,0 +1,111 @@
+This folder contains a partial code release accompanying the manuscript revision.
+
+The goal of this package is to expose the main implementation ideas behind:
+
+1. Critical-node selection for observability-aware missing-data experiments
+2. Cross-network transfer learning from a source feeder to a target feeder
+3. Unlabeled target-domain adaptation, including self-supervised adaptation and physics-guided adaptation
+
+
+## Folder Structure
+
+- `critical_node_selection/`
+  - Observability-oriented node ranking and missing-plan generation
+- `transfer_learning/`
+  - Partial parameter transfer and staged fine-tuning utilities
+- `unsupervised_adaptation/`
+  - Self-supervised and physics-guided target-domain adaptation utilities
+
+## 1. Critical-Node Selection
+
+The `critical_node_selection` subfolder contains the key scripts used to:
+
+- export an adjacency matrix from a feeder representation
+- compute critical-node rankings using multiple PMU-placement strategies
+- generate node-deletion plans under different observation rates
+
+The main idea is:
+
+1. Construct a feeder graph from the available topology
+2. Run several observability-oriented PMU placement procedures
+3. Count how often a node is selected and how much the required PMU count increases when that node is forbidden
+4. Use the resulting score to rank nodes from high to low importance
+5. Generate critical-first deletion plans for low-observability experiments
+
+## 2. Transfer Learning
+
+The `transfer_learning` subfolder contains a lightweight implementation of two practical transfer strategies:
+
+- `warm_start`: load the compatible source-domain parameters and fine-tune on the target feeder
+- `freeze_then_unfreeze`: first freeze transferred shared parameters, then unfreeze and fine-tune all parameters
+
+Only parameters with matching names and shapes are transferred. This makes the procedure usable even when the source and target feeders have different state dimensions.
+
+Mathematically, let the source-domain model parameters be `theta_s` and the target-domain parameters be `theta_t`. The transferred parameter subset is:
+
+`theta_t^(0)[i] = theta_s[i]` if the source and target tensors are shape-compatible, otherwise the target tensor keeps its original initialization.
+
+The warm-start fine-tuning stage solves:
+
+`min_{theta_t}  L_sup(theta_t; D_t)`
+
+where `D_t` is the labeled target-domain dataset.
+
+The staged freeze-then-unfreeze strategy is:
+
+Stage 1:
+`min_{theta_private}  L_sup(theta_shared fixed, theta_private; D_t)`
+
+Stage 2:
+`min_{theta_shared, theta_private}  L_sup(theta_shared, theta_private; D_t)`
+
+## 3. Unlabeled Adaptation
+
+The `unsupervised_adaptation` subfolder contains two target-domain adaptation strategies that do not use target-domain ground-truth states.
+
+### 3.1 Self-Supervised Adaptation
+
+The self-supervised loss uses observation consistency over the observed entries:
+
+`L_obs = || M \odot (\hat{X} - X_obs) ||_2^2`
+
+where:
+
+- `X_obs` is the noisy partially observed target-domain input
+- `M` is the observation mask
+- `hat{X}` is the completed state estimate
+
+The objective is:
+
+`min_theta  L_obs`
+
+### 3.2 Physics-Guided Adaptation
+
+The physics-guided variant combines observation consistency with a physics residual term:
+
+`L_phys = || h(\hat{X}) - h(X_obs) ||_2^2`
+
+where `h(.)` is a feeder-dependent power-flow-based measurement mapping.
+
+The final objective is:
+
+`min_theta  L_obs + lambda_phys L_phys`
+
+This formulation is suitable when target-domain state labels are unavailable but the network topology and a physics operator are accessible.
+
+## 4. What Is Needed to Run These Utilities
+
+To run the code in this package, users need to provide their own:
+
+1. feeder topology
+2. source/target datasets
+3. model backbone
+4. dataloaders
+5. optional physics operator
+
+The scripts in this folder are therefore intended as:
+
+- a reproducible algorithmic reference
+- a compact implementation supplement
+- a clean code subset for reviewer inspection
+
